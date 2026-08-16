@@ -8,7 +8,7 @@
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>SureSlip Engine Test</title>
+    <title>SureSlip - Poisson Engine Pro Test</title>
 
     <style>
         body {
@@ -24,68 +24,48 @@
             margin: auto;
         }
 
-        h1 {
-            margin-bottom: 5px;
-        }
-
-        .subtitle {
-            color: #666;
-            margin-bottom: 20px;
-        }
-
         .card {
             background: white;
             padding: 20px;
-            border-radius: 12px;
             margin-bottom: 15px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.08);
         }
 
         button {
             width: 100%;
             padding: 15px;
-            border: none;
+            border: 0;
             border-radius: 8px;
             background: #111827;
             color: white;
             font-size: 16px;
             font-weight: bold;
-            cursor: pointer;
-        }
-
-        button:active {
-            transform: scale(0.99);
         }
 
         .test {
             padding: 12px;
             margin: 8px 0;
             border-radius: 7px;
-            background: #f3f4f6;
         }
 
         .pass {
+            background: #ecfdf5;
             border-left: 5px solid #16a34a;
         }
 
         .fail {
+            background: #fef2f2;
             border-left: 5px solid #dc2626;
         }
 
-        .result {
-            font-size: 18px;
-            font-weight: bold;
-            margin-top: 15px;
-        }
-
         .score {
-            font-size: 30px;
+            font-size: 32px;
             font-weight: bold;
-            margin: 10px 0;
         }
 
         .market {
-            font-size: 20px;
+            font-size: 21px;
             font-weight: bold;
         }
 
@@ -107,20 +87,17 @@
 
     <div class="card">
 
-        <h1>SureSlip Engine Test</h1>
+        <h1>SureSlip Engine Pro</h1>
 
-        <div class="subtitle">
-            Poisson + Dixon-Coles Prediction Engine
-        </div>
+        <p>
+            Production Poisson + Dixon-Coles Engine Test
+        </p>
 
-        <button
-            onclick="runTest()"
-        >
-            🧪 RUN ENGINE TEST
+        <button onclick="runRealEngineTest()">
+            🧪 RUN REAL ENGINE TEST
         </button>
 
     </div>
-
 
     <div
         id="status"
@@ -128,13 +105,11 @@
         style="display:none;"
     ></div>
 
-
     <div
         id="prediction"
         class="card"
         style="display:none;"
     ></div>
-
 
     <div
         id="details"
@@ -145,620 +120,333 @@
 </div>
 
 
-<script>
+<!-- LOAD THE ACTUAL PRODUCTION ENGINE -->
+
 <script src="../poisson-engine-pro.js"></script>
-/*
- * ==========================================
- * SIMPLE BROWSER IMPLEMENTATION
- * ==========================================
- *
- * This reproduces the core Poisson +
- * Dixon-Coles calculation directly in
- * the browser.
- *
- * It allows testing without Node.js.
- */
 
 
-/*
- * Factorial
- */
+<script>
 
-function factorial(n) {
-
-    if (n <= 1) {
-        return 1;
-    }
-
-    let result = 1;
-
-    for (let i = 2; i <= n; i++) {
-        result *= i;
-    }
-
-    return result;
-}
-
-
-/*
- * Poisson PMF
- */
-
-function poissonPmf(k, lambda) {
+function percentage(probability) {
 
     return (
-        Math.pow(lambda, k) *
-        Math.exp(-lambda)
-    ) / factorial(k);
+        Number(probability) * 100
+    ).toFixed(2) + "%";
+
 }
 
 
-/*
- * Dixon-Coles Tau
- */
+function test(name, condition) {
 
-function tau(
-    x,
-    y,
-    lambda,
-    mu,
-    rho
-) {
+    return {
+        name,
+        pass: Boolean(condition)
+    };
 
-    if (x === 0 && y === 0) {
-        return 1 -
-            (lambda * mu * rho);
-    }
-
-    if (x === 1 && y === 0) {
-        return 1 +
-            (mu * rho);
-    }
-
-    if (x === 0 && y === 1) {
-        return 1 +
-            (lambda * rho);
-    }
-
-    if (x === 1 && y === 1) {
-        return 1 - rho;
-    }
-
-    return 1;
 }
 
 
-/*
- * Probability to odds
- */
+function runRealEngineTest() {
 
-function probToOdds(prob) {
+    const status =
+        document.getElementById("status");
 
-    return prob > 0
-        ? Number(
-            (1 / prob).toFixed(2)
+    const prediction =
+        document.getElementById("prediction");
+
+    const details =
+        document.getElementById("details");
+
+
+    status.style.display = "block";
+    prediction.style.display = "none";
+    details.style.display = "none";
+
+
+    const tests = [];
+
+
+    /*
+     * =====================================
+     * ENGINE EXISTENCE
+     * =====================================
+     */
+
+    tests.push(
+        test(
+            "Poisson Engine Pro loaded",
+            typeof window.DixonColesEnginePro === "function"
         )
-        : null;
-}
+    );
 
 
-/*
- * ==========================================
- * PREDICTION ENGINE
- * ==========================================
- */
+    /*
+     * =====================================
+     * RUN REAL ENGINE
+     * =====================================
+     */
 
-function predict(
-    lambda,
-    mu,
-    rho = -0.12,
-    maxGoals = 8
-) {
-
-    const matrix = [];
-
-    let homeWin = 0;
-    let draw = 0;
-    let awayWin = 0;
-
-    let bttsYes = 0;
-
-    const correctScores = [];
+    let result = null;
+    let engineError = null;
 
 
-    for (
-        let h = 0;
-        h <= maxGoals;
-        h++
-    ) {
+    try {
 
-        matrix[h] = [];
-
-        const pHome =
-            poissonPmf(
-                h,
-                lambda
+        result =
+            window.DixonColesEnginePro.predict(
+                1.85,
+                1.05,
+                -0.13,
+                8
             );
 
-        for (
-            let a = 0;
-            a <= maxGoals;
-            a++
-        ) {
+    } catch (error) {
 
-            const pAway =
-                poissonPmf(
-                    a,
-                    mu
-                );
+        engineError =
+            error;
 
-            const probability =
-                pHome *
-                pAway *
-                tau(
-                    h,
-                    a,
-                    lambda,
-                    mu,
-                    rho
-                );
-
-            matrix[h][a] =
-                probability;
+    }
 
 
-            if (h > a) {
-
-                homeWin +=
-                    probability;
-
-            } else if (h === a) {
-
-                draw +=
-                    probability;
-
-            } else {
-
-                awayWin +=
-                    probability;
-            }
+    tests.push(
+        test(
+            "Engine prediction executed",
+            result !== null
+        )
+    );
 
 
-            if (
-                h > 0 &&
-                a > 0
-            ) {
+    if (engineError) {
 
-                bttsYes +=
-                    probability;
-            }
+        status.innerHTML = `
 
+            <h2>❌ ENGINE ERROR</h2>
 
-            correctScores.push({
+            <pre>${escapeHtml(
+                engineError.stack ||
+                engineError.message
+            )}</pre>
 
-                score:
-                    `${h}-${a}`,
+        `;
 
-                probability
-
-            });
-        }
+        return;
     }
 
 
     /*
-     * Normalize 1X2
+     * =====================================
+     * EXACT SCORE
+     * =====================================
      */
 
-    const total =
+    tests.push(
+        test(
+            "Top exact scores returned",
+            Array.isArray(
+                result.topCorrectScores
+            ) &&
+            result.topCorrectScores.length > 0
+        )
+    );
+
+
+    /*
+     * We only want ONE top score
+     */
+
+    const topScore =
+        result.topCorrectScores &&
+        result.topCorrectScores.length
+            ? result.topCorrectScores[0]
+            : null;
+
+
+    tests.push(
+        test(
+            "Top exact score exists",
+            !!topScore &&
+            typeof topScore.score === "string"
+        )
+    );
+
+
+    tests.push(
+        test(
+            "Top exact score probability valid",
+            !!topScore &&
+            topScore.prob > 0 &&
+            topScore.prob <= 1
+        )
+    );
+
+
+    /*
+     * =====================================
+     * 1X2
+     * =====================================
+     */
+
+    const homeWin =
+        result.main1X2.homeWin.prob;
+
+    const draw =
+        result.main1X2.draw.prob;
+
+    const awayWin =
+        result.main1X2.awayWin.prob;
+
+
+    const oneXTwoTotal =
         homeWin +
         draw +
         awayWin;
 
 
-    homeWin /= total;
-    draw /= total;
-    awayWin /= total;
-
-
-    /*
-     * Find ONE top exact score
-     */
-
-    correctScores.sort(
-        (a, b) =>
-            b.probability -
-            a.probability
+    tests.push(
+        test(
+            "1X2 probabilities valid",
+            Math.abs(
+                oneXTwoTotal - 1
+            ) < 0.001
+        )
     );
 
 
-    const topScore =
-        correctScores[0];
-
-
     /*
-     * Goal markets
+     * =====================================
+     * BTTS
+     * =====================================
      */
 
-    let over15 = 0;
-    let over25 = 0;
+    const bttsYes =
+        result.btts.yes.prob;
+
+    const bttsNo =
+        result.btts.no.prob;
 
 
-    for (
-        let h = 0;
-        h <= maxGoals;
-        h++
-    ) {
-
-        for (
-            let a = 0;
-            a <= maxGoals;
-            a++
-        ) {
-
-            const p =
-                matrix[h][a];
-
-            if (
-                h + a > 1.5
-            ) {
-
-                over15 += p;
-            }
-
-            if (
-                h + a > 2.5
-            ) {
-
-                over25 += p;
-            }
-        }
-    }
-
-
-    /*
-     * Best market
-     */
-
-    const markets = [
-
-        {
-            name:
-                "Home or Draw",
-
-            probability:
-                homeWin + draw
-        },
-
-        {
-            name:
-                "Home or Away",
-
-            probability:
-                homeWin + awayWin
-        },
-
-        {
-            name:
-                "Draw or Away",
-
-            probability:
-                draw + awayWin
-        },
-
-        {
-            name:
-                "Over 1.5 Goals",
-
-            probability:
-                over15
-        },
-
-        {
-            name:
-                "Under 1.5 Goals",
-
-            probability:
-                1 - over15
-        },
-
-        {
-            name:
-                "Over 2.5 Goals",
-
-            probability:
-                over25
-        },
-
-        {
-            name:
-                "Under 2.5 Goals",
-
-            probability:
-                1 - over25
-        },
-
-        {
-            name:
-                "BTTS Yes",
-
-            probability:
-                bttsYes
-        },
-
-        {
-            name:
-                "BTTS No",
-
-            probability:
-                1 - bttsYes
-        }
-
-    ];
-
-
-    /*
-     * Only markets >= 65%
-     */
-
-    const qualifyingMarkets =
-        markets.filter(
-            market =>
-                market.probability >= 0.65
-        );
-
-
-    qualifyingMarkets.sort(
-        (a, b) =>
-            b.probability -
-            a.probability
+    tests.push(
+        test(
+            "BTTS probabilities valid",
+            Math.abs(
+                bttsYes +
+                bttsNo -
+                1
+            ) < 0.001
+        )
     );
 
 
-    const bestMarket =
-        qualifyingMarkets.length > 0
-            ? qualifyingMarkets[0]
-            : null;
+    /*
+     * =====================================
+     * GOALS
+     * =====================================
+     */
+
+    tests.push(
+        test(
+            "Over 1.5 available",
+            typeof result.goalsOverUnder.over15.prob
+                === "number"
+        )
+    );
 
 
-    return {
-
-        lambdaHome:
-            lambda,
-
-        lambdaAway:
-            mu,
-
-        homeWin,
-
-        draw,
-
-        awayWin,
-
-        bttsYes,
-
-        over15,
-
-        over25,
-
-        topScore,
-
-        bestMarket,
-
-        matrix
-
-    };
-}
-
-
-/*
- * ==========================================
- * RUN TEST
- * ==========================================
- */
-
-function runTest() {
-
-    const status =
-        document.getElementById(
-            "status"
-        );
-
-    const prediction =
-        document.getElementById(
-            "prediction"
-        );
-
-    const details =
-        document.getElementById(
-            "details"
-        );
-
-
-    status.style.display =
-        "block";
-
-    prediction.style.display =
-        "none";
-
-    details.style.display =
-        "none";
-
-
-    let tests = [];
+    tests.push(
+        test(
+            "Over 2.5 available",
+            typeof result.goalsOverUnder.over25.prob
+                === "number"
+        )
+    );
 
 
     /*
-     * Test 1
+     * =====================================
+     * DIXON-COLES
+     * =====================================
      */
 
-    try {
-
-        const result =
-            predict(
-                1.85,
-                1.05,
-                -0.12,
-                8
-            );
-
-
-        tests.push({
-            name:
-                "Poisson calculation",
-            pass:
-                !!result
-        });
-
-
-        tests.push({
-            name:
-                "Top exact score",
-            pass:
-                !!result.topScore.score
-        });
-
-
-        tests.push({
-            name:
-                "Exact score probability",
-            pass:
-                result.topScore.probability > 0 &&
-                result.topScore.probability <= 1
-        });
-
-
-        tests.push({
-            name:
-                "Home expected goals",
-            pass:
-                result.lambdaHome === 1.85
-        });
-
-
-        tests.push({
-            name:
-                "Away expected goals",
-            pass:
-                result.lambdaAway === 1.05
-        });
-
-
-        /*
-         * 1X2 validation
-         */
-
-        const resultTotal =
-            result.homeWin +
-            result.draw +
-            result.awayWin;
-
-
-        tests.push({
-            name:
-                "1X2 probabilities = 100%",
-            pass:
-                Math.abs(
-                    resultTotal - 1
-                ) < 0.001
-        });
-
-
-        /*
-         * BTTS validation
-         */
-
-        tests.push({
-            name:
-                "BTTS probabilities valid",
-            pass:
-                result.bttsYes >= 0 &&
-                result.bttsYes <= 1
-        });
-
-
-        /*
-         * Matrix validation
-         */
-
-        tests.push({
-            name:
-                "Full 0-8 score matrix",
-            pass:
-                result.matrix.length === 9 &&
-                result.matrix[0].length === 9
-        });
-
-
-        /*
-         * Best market
-         */
-
-        tests.push({
-            name:
-                "Best market selector",
-            pass:
-                result.bestMarket === null ||
-                result.bestMarket.probability >= 0.65
-        });
-
-
-    } catch (error) {
-
-        tests.push({
-
-            name:
-                "Engine execution",
-
-            pass:
-                false,
-
-            error:
-                error.message
-
-        });
-
-    }
+    tests.push(
+        test(
+            "Dixon-Coles rho applied",
+            result.inputs &&
+            result.inputs.rho === -0.13
+        )
+    );
 
 
     /*
-     * Display tests
+     * =====================================
+     * EXPECTED GOALS
+     * =====================================
      */
 
-    let html = "";
+    tests.push(
+        test(
+            "Home expected goals correct",
+            result.inputs &&
+            result.inputs.expectedGoalsHome === 1.85
+        )
+    );
+
+
+    tests.push(
+        test(
+            "Away expected goals correct",
+            result.inputs &&
+            result.inputs.expectedGoalsAway === 1.05
+        )
+    );
+
+
+    /*
+     * =====================================
+     * ODDS
+     * =====================================
+     */
+
+    tests.push(
+        test(
+            "Exact score fair odds available",
+            !!topScore &&
+            typeof topScore.odds === "number"
+        )
+    );
+
+
+    /*
+     * =====================================
+     * DISPLAY TESTS
+     * =====================================
+     */
 
     let allPassed = true;
 
+    let html = "";
 
-    tests.forEach(test => {
 
-        if (!test.pass) {
+    tests.forEach(item => {
+
+        if (!item.pass) {
             allPassed = false;
         }
 
         html += `
 
-            <div
-                class="test ${
-                    test.pass
-                        ? "pass"
-                        : "fail"
-                }"
-            >
+            <div class="test ${
+                item.pass
+                    ? "pass"
+                    : "fail"
+            }">
 
                 ${
-                    test.pass
+                    item.pass
                         ? "✅"
                         : "❌"
                 }
 
-                ${test.name}
-
-                ${
-                    test.error
-                        ? `<br><small>${test.error}</small>`
-                        : ""
-                }
+                ${escapeHtml(item.name)}
 
             </div>
 
@@ -772,8 +460,8 @@ function runTest() {
         <h2>
             ${
                 allPassed
-                    ? "✅ ALL TESTS PASSED"
-                    : "❌ TEST FAILURE"
+                    ? "✅ ALL ENGINE TESTS PASSED"
+                    : "❌ SOME TESTS FAILED"
             }
         </h2>
 
@@ -783,17 +471,10 @@ function runTest() {
 
 
     /*
-     * Run final prediction
+     * =====================================
+     * PREDICTION DISPLAY
+     * =====================================
      */
-
-    const result =
-        predict(
-            1.85,
-            1.05,
-            -0.12,
-            8
-        );
-
 
     prediction.style.display =
         "block";
@@ -801,97 +482,119 @@ function runTest() {
 
     prediction.innerHTML = `
 
-        <h2>Sample Prediction</h2>
+        <h2>
+            Sample Production Prediction
+        </h2>
 
         <p>
             Expected Goals:
             <strong>
-                ${result.lambdaHome}
+                ${result.inputs.expectedGoalsHome}
                 -
-                ${result.lambdaAway}
+                ${result.inputs.expectedGoalsAway}
             </strong>
         </p>
 
+        <hr>
+
         <p>
-            🎯 Top Exact Score
+            🎯 TOP EXACT SCORE
         </p>
 
         <div class="score">
-            ${result.topScore.score}
+            ${escapeHtml(topScore.score)}
         </div>
 
         <p>
             Probability:
             <strong>
-                ${
-                    (
-                        result.topScore.probability *
-                        100
-                    ).toFixed(2)
-                }%
+                ${percentage(topScore.prob)}
             </strong>
         </p>
 
         <p>
             Fair Odds:
             <strong>
+                ${topScore.odds}
+            </strong>
+        </p>
+
+        <hr>
+
+        <h3>1X2</h3>
+
+        <p>
+            Home:
+            <strong>
+                ${percentage(homeWin)}
+            </strong>
+        </p>
+
+        <p>
+            Draw:
+            <strong>
+                ${percentage(draw)}
+            </strong>
+        </p>
+
+        <p>
+            Away:
+            <strong>
+                ${percentage(awayWin)}
+            </strong>
+        </p>
+
+        <hr>
+
+        <h3>BTTS</h3>
+
+        <p>
+            Yes:
+            <strong>
+                ${percentage(bttsYes)}
+            </strong>
+        </p>
+
+        <p>
+            No:
+            <strong>
+                ${percentage(bttsNo)}
+            </strong>
+        </p>
+
+        <hr>
+
+        <h3>Goals</h3>
+
+        <p>
+            Over 1.5:
+            <strong>
                 ${
-                    probToOdds(
-                        result.topScore.probability
+                    percentage(
+                        result.goalsOverUnder.over15.prob
                     )
                 }
             </strong>
         </p>
 
-        ${
-            result.bestMarket
-                ? `
-                    <hr>
-
-                    <p>
-                        ⭐ Best Market
-                    </p>
-
-                    <div class="market">
-                        ${result.bestMarket.name}
-                    </div>
-
-                    <p>
-                        Probability:
-                        <strong>
-                            ${
-                                (
-                                    result.bestMarket.probability *
-                                    100
-                                ).toFixed(2)
-                            }%
-                        </strong>
-                    </p>
-
-                    <p>
-                        Fair Odds:
-                        <strong>
-                            ${
-                                probToOdds(
-                                    result.bestMarket.probability
-                                )
-                            }
-                        </strong>
-                    </p>
-                `
-                : `
-                    <hr>
-                    <p>
-                        No market reached 65%.
-                    </p>
-                `
-        }
+        <p>
+            Over 2.5:
+            <strong>
+                ${
+                    percentage(
+                        result.goalsOverUnder.over25.prob
+                    )
+                }
+            </strong>
+        </p>
 
     `;
 
 
     /*
-     * Technical details
+     * =====================================
+     * RAW ENGINE OUTPUT
+     * =====================================
      */
 
     details.style.display =
@@ -901,48 +604,38 @@ function runTest() {
     details.innerHTML = `
 
         <h2>
-            Engine Details
+            Production Engine Output
         </h2>
 
-        <pre>${
+        <pre>${escapeHtml(
             JSON.stringify(
-                {
-                    lambdaHome:
-                        result.lambdaHome,
-
-                    lambdaAway:
-                        result.lambdaAway,
-
-                    rho:
-                        -0.12,
-
-                    maxGoals:
-                        8,
-
-                    topExactScore:
-                        result.topScore,
-
-                    homeWin:
-                        result.homeWin,
-
-                    draw:
-                        result.draw,
-
-                    awayWin:
-                        result.awayWin,
-
-                    bttsYes:
-                        result.bttsYes
-                },
+                result,
                 null,
                 2
             )
-        }</pre>
+        )}</pre>
 
     `;
+
+}
+
+
+/*
+ * Prevent HTML injection when displaying
+ * engine output in the browser.
+ */
+
+function escapeHtml(value) {
+
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 </script>
 
 </body>
-  </html>
+</html>
