@@ -281,3 +281,4 @@ class DixonColesEnginePro {
 // Example Run: Arsenal vs Chelsea (e.g., Expected Home Goals = 1.85, Away Goals = 1.05)
 const matchPrediction = DixonColesEnginePro.predict(1.85, 1.05, -0.13);
 console.log(JSON.stringify(matchPrediction, null, 2));
+window.DixonColesEnginePro = DixonColesEnginePro;
